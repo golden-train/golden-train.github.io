@@ -4,5 +4,12 @@ icon: fas fa-info-circle
 order: 4
 ---
 
-> Add Markdown syntax content to file `_tabs/about.md`{: .filepath } and it will show up on this page.
-{: .prompt-tip }
+我是这个教程博客的作者，这里会持续整理可直接上手的技术笔记、排错记录和实践教程。
+
+这个站点的内容会尽量遵循三个原则：
+
+- 步骤要完整，避免只给结论不讲过程。
+- 示例要可运行，尽量提供最小可复现片段。
+- 说明要清楚，保留关键背景，方便回看和复用。
+
+如果你正在跟着模板做自己的博客，可以先修改 `_config.yml`、补全 `_data/contact.yml`，然后开始往 `_posts/` 里写第一篇教程。
