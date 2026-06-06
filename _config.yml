@@ -15,14 +15,14 @@ title: 随笔
 tagline: 机械动力mod制作教程
 
 description: >-
-  没啥好说的，就这样吧
+  机械动力扩展编写，Minecraft mod开发，中文教程，适用用于中国人，编程新手
 # Fill in the protocol & hostname for your site.
 # E.g. 'https://username.github.io', note that it does not end with a '/'.
 
 url: ""
 
 github:
-  username: your_github_username # change to your GitHub username
+  username: golden-train # change to your GitHub username
 
 twitter:
   username: your_twitter_username # change to your Twitter username
@@ -95,7 +95,7 @@ theme_mode: # [light | dark]
 cdn:
 
 # the avatar on sidebar, support local or CORS resources
-avatar:
+avatar: /assets/img/head.jpg
 
 # The URL of the site-wide social preview image used in SEO `og:image` meta tag.
 # It can be overridden by a customized `page.image` in front matter.
