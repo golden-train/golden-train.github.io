@@ -1,5 +1,5 @@
 ---
-title: "第一个物品"
+title: "REGISTRATE注册系统初步"
 date: 2026-06-05 10:00:00 +0800
 categories: [机械动力教程, 开始制作]
 tags: [开始制作, 机械动力教程]
@@ -49,6 +49,24 @@ author: golden-train
 这样，我们就成功注册了一个方块，接下来，我们将介绍一下代码中的每一行的作用
 需要注意，您还需要额外完成json文件的编写，当前阶段您可以求助AI，在后续的教程中，我会介绍如何使用生成json文件的工具来简化这个过程。
 
-3.运行date来生成相关的json文件，在IDEA的顶端却换即可
+再运行之前，本方块还没有导入自动的模型生成，您需要手动完成，放置在
+resources/assets/您MOD的名字/models/block/您方块的名字.json
+如果没有，请手动创建，确保路径与给出的一致
+以下是代码，如果您使用它，则无需额外装载资源图，因为直接调用了MC的资源
+    {
+    "parent": "minecraft:block/cube_column",
+    "textures": {
+        "end": "create:block/brass_gearbox",
+        "side": "minecraft:block/oak_log"
+    }
+    }
 
-4.运行游戏检查代码。如果你成功注册了方块，你应该可以在游戏中看到它了，恭喜你，你已经成功注册了你的第一个物品了，在下一章，我们将介绍如何为您的方块添加轴承旋转等机械动力特有的功能。
+否则，您还需要再资源文件中放入相关贴图文件，保持与名称一致即可
+resources/assets/您MOD的名字/textures/block/您方块的名字.png
+
+3.运行data来生成相关的json文件，在IDEA的顶端却换即可
+
+4.运行游戏检查代码。如果你成功注册了方块，你应该可以在游戏中看到它了，恭喜你，你已经成功注册了你的第一个方块了，在下一章，我们将介绍如何为您的方块添加轴承旋转等机械动力特有的功能。
+[![](/assets/img/018.png)](/assets/img/018.png)
+
+>REGISTRATE并非是机械动力的专属功能，它是一个相当简洁的注册工具，可以一次性生成包括模型，语言文件在内的多种json，您甚至无需配置额外的数据生成器。当然，如果您更加熟悉neoforge给出的DeferredRegister，您也可以继续使用它来进行注册，机械动力的功能并不依赖于REGISTRATE，您完全可以在不使用REGISTRATE的情况下编写机械动力MOD。但是，REGISTRATE的确可以让你更轻松的编写代码。这里是REGISTRATE的源代码地址，如果您喜欢，可以为开发人员点个星。[Registrate](https://github.com/tterrag1098/Registrate)
