@@ -1,0 +1,705 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>滤波方法对比</title>
+<style>
+  :root{
+    color-scheme: light;
+    --page:        #f9f9f7;
+    --surface-1:   #fcfcfb;
+    --ink-1:       #0b0b0b;
+    --ink-2:       #52514e;
+    --ink-muted:   #898781;
+    --grid:        #e1e0d9;
+    --axis:        #c3c2b7;
+    --border:      rgba(11,11,11,0.10);
+    --series-1:    #2a78d6;
+    --series-2:    #eb6834;
+    --series-3:    #1baf7a;
+    --series-4:    #eda100;
+    --series-5:    #e87ba4;
+    --series-6:    #008300;
+    --series-7:    #4a3aa7;
+    --best:        #006300;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:where(:not([data-theme="light"])){
+      color-scheme: dark;
+      --page:      #0d0d0d;
+      --surface-1: #1a1a19;
+      --ink-1:     #ffffff;
+      --ink-2:     #c3c2b7;
+      --ink-muted: #898781;
+      --grid:      #2c2c2a;
+      --axis:      #383835;
+      --border:    rgba(255,255,255,0.10);
+      --series-1:  #3987e5;
+      --series-2:  #d95926;
+      --series-3:  #199e70;
+      --series-4:  #c98500;
+      --series-5:  #d55181;
+      --series-6:  #008300;
+      --series-7:  #9085e9;
+      --best:      #0ca30c;
+    }
+  }
+  :root[data-theme="dark"]{
+    color-scheme: dark;
+    --page:      #0d0d0d;
+    --surface-1: #1a1a19;
+    --ink-1:     #ffffff;
+    --ink-2:     #c3c2b7;
+    --ink-muted: #898781;
+    --grid:      #2c2c2a;
+    --axis:      #383835;
+    --border:    rgba(255,255,255,0.10);
+    --series-1:  #3987e5;
+    --series-2:  #d95926;
+    --series-3:  #199e70;
+    --series-4:  #c98500;
+    --series-5:  #d55181;
+    --series-6:  #008300;
+    --series-7:  #9085e9;
+    --best:      #0ca30c;
+  }
+  *{ box-sizing: border-box; }
+  body{
+    margin:0; padding:24px 20px 60px;
+    font: 14px/1.5 system-ui, -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif;
+    background: var(--page); color: var(--ink-1);
+  }
+  .viz-root{ max-width: 1120px; margin: 0 auto; }
+
+  header{ display:flex; align-items:flex-start; gap:16px; flex-wrap:wrap; margin-bottom:18px; }
+  h1{ font-size:20px; font-weight:650; margin:0 0 4px; letter-spacing:.01em; }
+  .sub{ color: var(--ink-2); font-size:13px; margin:0; }
+  .spacer{ flex:1 1 auto; }
+  button.toggle{
+    font: inherit; color: var(--ink-2); background: var(--surface-1);
+    border: 1px solid var(--border); border-radius: 8px; padding: 6px 12px; cursor: pointer;
+  }
+  button.toggle:hover{ color: var(--ink-1); }
+
+  .card{
+    background: var(--surface-1); border: 1px solid var(--border);
+    border-radius: 12px; padding: 16px 18px; margin-bottom: 16px;
+  }
+  .card > h2{ font-size:14px; font-weight:650; margin:0 0 2px; }
+  .card > .cap{ color: var(--ink-muted); font-size:12px; margin:0 0 10px; }
+
+  /* ---- controls ---- */
+  .controls{ display:grid; grid-template-columns: repeat(auto-fit, minmax(230px,1fr)); gap:10px 22px; }
+  .ctl{ display:grid; grid-template-columns: 1fr auto; align-items:center; gap:4px 8px; }
+  .ctl > span{ font-size:12px; color: var(--ink-2); }
+  .ctl > output{ font-size:12px; color: var(--ink-1); font-variant-numeric: tabular-nums; }
+  .ctl > input{ grid-column: 1 / -1; width:100%; accent-color: var(--series-1); }
+
+  /* ---- legend ---- */
+  .legend{ display:flex; flex-wrap:wrap; gap:6px 8px; margin: 0 0 16px; }
+  .legend button{
+    display:inline-flex; align-items:center; gap:7px;
+    font: inherit; font-size:12.5px; color: var(--ink-2);
+    background: var(--surface-1); border:1px solid var(--border);
+    border-radius: 999px; padding: 5px 11px; cursor: pointer;
+  }
+  .legend button .swatch{ width:10px; height:10px; border-radius:3px; background: var(--c); }
+  .legend button[aria-pressed="true"]{ color: var(--ink-1); }
+  .legend button[aria-pressed="false"]{ opacity:.45; }
+  .legend button[aria-pressed="false"] .swatch{ background: var(--ink-muted); }
+
+  /* ---- charts ---- */
+  .plot{ position:relative; }
+  .plot canvas{ display:block; width:100%; height:250px; cursor: crosshair; }
+  .plot.tall canvas{ height:280px; }
+  .tip{
+    position:absolute; pointer-events:none; opacity:0; transition: opacity .1s;
+    background: var(--surface-1); border:1px solid var(--border); border-radius:9px;
+    padding:7px 10px; font-size:12px; color: var(--ink-1);
+    box-shadow: 0 4px 14px rgba(0,0,0,.14); min-width: 150px; z-index: 5;
+  }
+  .tip .t-h{ color: var(--ink-muted); margin-bottom:4px; font-variant-numeric: tabular-nums; }
+  .tip .t-r{ display:flex; align-items:center; gap:6px; justify-content:space-between; }
+  .tip .t-r .t-l{ display:flex; align-items:center; gap:6px; color: var(--ink-2); }
+  .tip .t-r i{ width:8px; height:8px; border-radius:2px; background: var(--c); display:inline-block; }
+  .tip .t-r b{ font-weight:550; font-variant-numeric: tabular-nums; }
+
+  /* ---- tables ---- */
+  table{ width:100%; border-collapse: collapse; font-size:12.5px; }
+  th, td{ text-align:right; padding:6px 8px; border-bottom:1px solid var(--grid); font-variant-numeric: tabular-nums; }
+  th:first-child, td:first-child{ text-align:left; font-variant-numeric: normal; }
+  thead th{ color: var(--ink-muted); font-weight:500; font-size:11.5px; }
+  tbody td{ color: var(--ink-1); }
+  td .ok{ color: var(--best); font-weight:650; margin-left:3px; }
+  .scroll{ overflow-x:auto; }
+  .hidden{ display:none; }
+  .foot{ color: var(--ink-muted); font-size:12px; margin: 4px 0 0; }
+</style>
+</head>
+<body>
+<div class="viz-root" id="root">
+
+  <header>
+    <div>
+      <h1>滤波方法对比</h1>
+      <p class="sub">同一段带噪声、带尖峰的温度数据，7 种处理方式的直观差距</p>
+    </div>
+    <div class="spacer"></div>
+    <button class="toggle" id="theme" type="button">切换深/浅色</button>
+  </header>
+
+  <div class="card">
+    <div class="controls" id="controls"></div>
+    <p class="foot" style="margin-top:12px">拖动滑块，三张图和下面两张表会同步重算。数据是模拟的：一天 144 个点（每 10 分钟一个），基线为 21 ± 6 ℃ 的昼夜曲线，第一处尖峰在 06:30。</p>
+  </div>
+
+  <div class="legend" id="legend"></div>
+
+  <div class="card tall">
+    <h2>① 全天对比</h2>
+    <p class="cap">原始数据里的三处尖峰是传感器跳变，不是真实温度。把「限幅阈值 Δ」拖到 2.0 以下，限幅滤波会被甩开后卡死不动（整整一天停在旧值）——它只能防跳变，不能单独长期用。</p>
+    <div class="plot tall" id="plot1"><canvas></canvas><div class="tip"></div></div>
+  </div>
+
+  <div class="card">
+    <h2>② 尖峰放大（06:30 前后 2 小时）</h2>
+    <p class="cap">一个坏点的影响能拖多远，这里是看图最清楚的地方</p>
+    <div class="plot" id="plot2"><canvas></canvas><div class="tip"></div></div>
+    <p style="margin:12px 0 6px">
+      <button class="toggle" id="tbl2btn" type="button">显示数值表</button>
+    </p>
+    <div class="scroll hidden" id="tbl2"></div>
+  </div>
+
+  <div class="card">
+    <h2>③ 阶跃响应（温度从 20 ℃ 跳到 30 ℃）</h2>
+    <p class="cap">看谁跟得上、谁反应慢——滞后就是平滑的代价</p>
+    <div class="plot" id="plot3"><canvas></canvas><div class="tip"></div></div>
+  </div>
+
+  <div class="card">
+    <h2>④ 指标</h2>
+    <p class="cap">✓ 表示这一列里最好的一项</p>
+    <div class="scroll" id="tbl4"></div>
+    <p class="foot">噪声 RMSE：滤波后与真实曲线（不含尖峰）的均方根误差，越小越干净。尖峰处最大偏差：尖峰时刻滤波结果与真值差多少，越小越抗野值。阶跃到 90%：从 20 ℃ 升到 29 ℃ 用了多少分钟，越小越灵敏。</p>
+  </div>
+
+  <p class="foot">移动平均用的是 <code>week_2/基础/main.cpp</code> 里同一套算法（环形窗口 + 取模）。RC 低通与 EMA 是同一个递推式，只是系数叫法不同：α = dt / (τ + dt)。</p>
+</div>
+
+<script>
+"use strict";
+
+/* =========================================================
+   1. 数据与滤波算法
+   ========================================================= */
+const N = 144;            // 一天 144 个点
+const DT = 10;            // 每点 10 分钟
+const SPIKE_IDX = [39, 78, 117];
+const SPIKE_SIGN = [1, -1, 1];
+
+let _seed = 20240501;
+function rnd(){ _seed = (Math.imul(_seed, 1664525) + 1013904223) >>> 0; return _seed / 4294967296; }
+function gauss(){ return Math.sqrt(-2 * Math.log(rnd() || 1e-9)) * Math.cos(2 * Math.PI * rnd()); }
+
+function hhmm(i){ const m = i * DT; return String(Math.floor(m / 60)).padStart(2,"0") + ":" + String(m % 60).padStart(2,"0"); }
+
+// 环形窗口 + 取模，和 基础/main.cpp 的 moving_avg 一致
+function fMovingAvg(x, W){
+  const out = [], win = new Array(W).fill(0);
+  let idx = 0, cnt = 0;
+  for (let i = 0; i < x.length; i++){
+    win[idx] = x[i];
+    idx = (idx + 1) % W;
+    if (cnt < W) cnt++;
+    let s = 0;
+    for (let j = 0; j < cnt; j++) s += win[j];
+    out.push(s / cnt);
+  }
+  return out;
+}
+
+// 限幅：跳变超过 Δ 就丢掉新值，沿用上一个有效值
+function fLimit(x, d){
+  let y = x[0];
+  const out = [y];
+  for (let i = 1; i < x.length; i++){
+    if (Math.abs(x[i] - y) <= d) y = x[i];
+    out.push(y);
+  }
+  return out;
+}
+
+// 中值：窗口内排序取中间
+function fMedian(x, W){
+  const half = (W - 1) / 2, out = [];
+  for (let i = 0; i < x.length; i++){
+    const seg = [];
+    for (let j = i - half; j <= i + half; j++)
+      seg.push(x[Math.min(x.length - 1, Math.max(0, j))]);
+    seg.sort((a, b) => a - b);
+    out.push(seg[half]);
+  }
+  return out;
+}
+
+// 指数移动平均：y = a*x + (1-a)*y
+function fEMA(x, a){
+  let y = x[0];
+  const out = [y];
+  for (let i = 1; i < x.length; i++){ y = a * x[i] + (1 - a) * y; out.push(y); }
+  return out;
+}
+
+// RC 一阶低通：同一个递推式，系数由时间常数 τ 换算 α = dt/(τ+dt)
+function fRC(x, tauMin){
+  const a = DT / (tauMin + DT);
+  let y = x[0];
+  const out = [y];
+  for (let i = 1; i < x.length; i++){ y = y + a * (x[i] - y); out.push(y); }
+  return out;
+}
+
+// 一维卡尔曼：假设"值不变"为预测模型，Q 过程噪声，R 观测噪声
+function fKalman(x, Q, R){
+  let X = x[0], Pp = 1;
+  const out = [X];
+  for (let i = 1; i < x.length; i++){
+    Pp += Q;                       // 预测
+    const K = Pp / (Pp + R);       // 卡尔曼增益
+    X = X + K * (x[i] - X);        // 修正
+    Pp = (1 - K) * Pp;
+    out.push(X);
+  }
+  return out;
+}
+
+/* =========================================================
+   2. 参数
+   ========================================================= */
+const DEFAULTS = { noise:0.8, spike:7, maW:8, medW:5, limit:3, emaA:0.35, rcTau:30, kalQ:-2 };
+const P = Object.assign({}, DEFAULTS);
+
+const CTLS = [
+  { id:"noise", label:"噪声 σ（℃）",        min:0,   max:2,   step:0.1, fmt:v => v.toFixed(1) },
+  { id:"spike", label:"尖峰幅度（℃）",      min:0,   max:12,  step:1,   fmt:v => v.toFixed(0) },
+  { id:"maW",   label:"移动平均窗口 W",     min:2,   max:24,  step:1,   fmt:v => v.toFixed(0) },
+  { id:"medW",  label:"中值窗口 W（奇数）", min:3,   max:15,  step:2,   fmt:v => v.toFixed(0) },
+  { id:"limit", label:"限幅阈值 Δ（℃）",    min:0.5, max:6,   step:0.5, fmt:v => v.toFixed(1) },
+  { id:"emaA",  label:"EMA 系数 a",         min:0.05,max:0.9, step:0.05,fmt:v => v.toFixed(2) },
+  { id:"rcTau", label:"RC 时间常数 τ（分钟）", min:10, max:180, step:10, fmt:v => v.toFixed(0) },
+  { id:"kalQ",  label:"卡尔曼过程噪声 Q",   min:-4,  max:-1,  step:0.1, fmt:v => "10^" + v.toFixed(1) },
+];
+
+/* =========================================================
+   3. 系列定义（颜色跟着方法走，隐藏后不重新分配）
+   ========================================================= */
+const SERIES = [
+  { key:"raw",    name:"原始数据",     slot:1 },
+  { key:"ma",     name:"移动平均",     slot:2 },
+  { key:"limit",  name:"限幅滤波",     slot:3 },
+  { key:"median", name:"中值滤波",     slot:4 },
+  { key:"ema",    name:"EMA 指数移动平均", slot:5 },
+  { key:"rc",     name:"RC 低通",      slot:6 },
+  { key:"kalman", name:"卡尔曼滤波",   slot:7 },
+];
+const visible = {};
+SERIES.forEach(s => visible[s.key] = true);
+
+const M = { truth:[], data:{}, stepData:{}, metrics:[], stepTable:[] };
+
+/* =========================================================
+   4. 重算
+   ========================================================= */
+function buildSeries(){
+  _seed = 20240501;                          // 固定种子，结果可复现
+  const truth = [], raw = [];
+  for (let i = 0; i < N; i++){
+    const h = i * DT / 60;
+    const base = 21 + 6 * Math.sin(2 * Math.PI * (h - 9) / 24);
+    let v = base + gauss() * P.noise;
+    const k = SPIKE_IDX.indexOf(i);
+    if (k >= 0) v += SPIKE_SIGN[k] * P.spike;
+    truth.push(base); raw.push(v);
+  }
+  const R = Math.max(P.noise * P.noise, 0.01);
+  const Q = Math.pow(10, P.kalQ);
+  M.truth = truth;
+  M.data = {
+    raw,
+    ma:     fMovingAvg(raw, P.maW),
+    limit:  fLimit(raw, P.limit),
+    median: fMedian(raw, P.medW),
+    ema:    fEMA(raw, P.emaA),
+    rc:     fRC(raw, P.rcTau),
+    kalman: fKalman(raw, Q, R),
+  };
+
+  // 阶跃：20 ℃ → 30 ℃
+  const S = 60, AT = 10, FROM = 20, TO = 30;
+  const stepIn = [];
+  for (let i = 0; i < S; i++) stepIn.push(i < AT ? FROM : TO);
+  const outs = {
+    raw:    stepIn,
+    ma:     fMovingAvg(stepIn, P.maW),
+    limit:  fLimit(stepIn, P.limit),
+    median: fMedian(stepIn, P.medW),
+    ema:    fEMA(stepIn, P.emaA),
+    rc:     fRC(stepIn, P.rcTau),
+    kalman: fKalman(stepIn, Q, Math.max(P.noise * P.noise, 0.01)),
+  };
+  M.stepData = { input: stepIn, at: AT, from: FROM, to: TO, n: S, out: outs };
+
+  computeMetrics();
+}
+
+function computeMetrics(){
+  const spikeSet = SPIKE_IDX;
+  M.metrics = SERIES.map(s => {
+    const y = M.data[s.key];
+    let se = 0;
+    for (let i = 0; i < N; i++){ const d = y[i] - M.truth[i]; se += d * d; }
+    const rmse = Math.sqrt(se / N);
+    let spikeErr = 0;
+    spikeSet.forEach(i => { spikeErr = Math.max(spikeErr, Math.abs(y[i] - M.truth[i])); });
+
+    const st = M.stepData, sy = M.stepData.out[s.key], target = st.from + 0.9 * (st.to - st.from);
+    let idx = -1;
+    for (let i = st.at; i < st.n; i++) if (sy[i] >= target){ idx = i; break; }
+    const rise = idx < 0 ? null : (idx - st.at) * DT;
+
+    return { key:s.key, name:s.name, rmse, spikeErr, rise };
+  });
+  M.stepTable = M.metrics;
+}
+
+/* =========================================================
+   5. 画图引擎
+   ========================================================= */
+function cssVar(name){ return getComputedStyle(document.getElementById("root")).getPropertyValue(name).trim(); }
+function seriesColor(slot){ return cssVar("--series-" + slot); }
+
+function niceScale(lo, hi, count){
+  if (!isFinite(lo) || !isFinite(hi) || hi - lo < 1e-9){ lo -= 1; hi += 1; }
+  const rawStep = (hi - lo) / (count || 5);
+  const mag = Math.pow(10, Math.floor(Math.log10(rawStep)));
+  const norm = rawStep / mag;
+  let step = norm <= 1 ? 1 : norm <= 2 ? 2 : norm <= 2.5 ? 2.5 : norm <= 5 ? 5 : 10;
+  step *= mag;
+  return { min: Math.floor(lo / step) * step, max: Math.ceil(hi / step) * step, step };
+}
+
+function makeChart(hostId, cfg){
+  const host = document.getElementById(hostId);
+  const canvas = host.querySelector("canvas");
+  const tip = host.querySelector(".tip");
+  const ctx = canvas.getContext("2d");
+  const chart = { host, canvas, tip, ctx, cfg, hover:null, box:null, xr:null, yr:null };
+
+  function fit(){
+    const w = host.clientWidth, h = canvas.clientHeight;
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = Math.round(w * dpr);
+    canvas.height = Math.round(h * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    chart.w = w; chart.h = h;
+  }
+
+  canvas.addEventListener("mousemove", e => {
+    const r = canvas.getBoundingClientRect();
+    chart.hover = { x: e.clientX - r.left, y: e.clientY - r.top };
+    render(chart);
+  });
+  canvas.addEventListener("mouseleave", () => { chart.hover = null; render(chart); });
+
+  new ResizeObserver(() => { fit(); render(chart); }).observe(host);
+  chart.fit = fit;
+  fit();
+  return chart;
+}
+
+function render(chart){
+  const { ctx, w, h, cfg } = chart;
+  if (!w) return;
+  const inkMuted = cssVar("--ink-muted"), ink2 = cssVar("--ink-2"),
+        grid = cssVar("--grid"), axis = cssVar("--axis"), surface = cssVar("--surface-1");
+
+  const padL = 46, padR = 14, padT = 10, padB = 26;
+  const box = { x: padL, y: padT, w: w - padL - padR, h: h - padT - padB };
+  ctx.clearRect(0, 0, w, h);
+
+  const sx = cfg.x;
+  const vis = cfg.series.filter(s => visible[s.key]);
+  let ymin = Infinity, ymax = -Infinity;
+  vis.forEach(s => s.data.forEach(v => { if (v < ymin) ymin = v; if (v > ymax) ymax = v; }));
+  let ys;
+  if (!vis.length || !isFinite(ymin) || !isFinite(ymax)){
+    ys = niceScale(0, 1, 4);                    // 全部隐藏时给个安全范围，避免死循环
+  } else {
+    const pad = (ymax - ymin) * 0.08 || 1;
+    ys = niceScale(ymin - pad, ymax + pad, 4);
+  }
+
+  const X = v => box.x + (v - sx[0]) / (sx[sx.length - 1] - sx[0] || 1) * box.w;
+  const Y = v => box.y + box.h - (v - ys.min) / (ys.max - ys.min) * box.h;
+  chart.X = X; chart.Y = Y; chart.box = box; chart.sx = sx; chart.ys = ys;
+
+  // 网格 + y 轴刻度
+  ctx.font = "11px system-ui, 'Segoe UI', 'Microsoft YaHei', sans-serif";
+  ctx.strokeStyle = grid; ctx.lineWidth = 1; ctx.fillStyle = inkMuted;
+  ctx.textAlign = "right"; ctx.textBaseline = "middle";
+  for (let v = ys.min; v <= ys.max + 1e-9; v += ys.step){
+    const y = Math.round(Y(v)) + 0.5;
+    ctx.beginPath(); ctx.moveTo(box.x, y); ctx.lineTo(box.x + box.w, y); ctx.stroke();
+    ctx.fillText(cfg.yFmt ? cfg.yFmt(v) : v.toFixed(0), box.x - 8, y);
+  }
+
+  // x 轴
+  ctx.textAlign = "center"; ctx.textBaseline = "top";
+  cfg.xTicks.forEach((v, i) => {
+    const x = X(v);
+    ctx.fillStyle = inkMuted;
+    ctx.fillText(cfg.xFmt(v, i), x, box.y + box.h + 7);
+  });
+  ctx.strokeStyle = axis;
+  ctx.beginPath();
+  ctx.moveTo(box.x, box.y + box.h + 0.5); ctx.lineTo(box.x + box.w, box.y + box.h + 0.5);
+  ctx.stroke();
+
+  // 阈值参考线（可选）
+  if (cfg.refLines) cfg.refLines.forEach(r => {
+    ctx.strokeStyle = axis; ctx.lineWidth = 1;
+    const y = Math.round(Y(r.v)) + 0.5;
+    ctx.beginPath(); ctx.moveTo(box.x, y); ctx.lineTo(box.x + box.w, y); ctx.stroke();
+    ctx.fillStyle = inkMuted; ctx.textAlign = "left"; ctx.textBaseline = "bottom";
+    ctx.fillText(r.label, box.x + 4, y - 2);
+  });
+
+  // 数据线：2px
+  ctx.lineJoin = "round"; ctx.lineCap = "round";
+  vis.forEach(s => {
+    ctx.strokeStyle = s.color; ctx.lineWidth = 2;
+    ctx.beginPath();
+    for (let i = 0; i < sx.length; i++){
+      const px = X(sx[i]), py = Y(s.data[i]);
+      i ? ctx.lineTo(px, py) : ctx.moveTo(px, py);
+    }
+    ctx.stroke();
+  });
+  if (cfg.markSpikes && cfg.markSpikes.length){
+    const rawS = cfg.series.find(s => s.key === "raw");
+    ctx.fillStyle = inkMuted;
+    cfg.markSpikes.forEach(i => {
+      if (!rawS || i < 0 || i >= sx.length) return;
+      ctx.beginPath();
+      ctx.arc(X(sx[i]), Y(rawS.data[i]), 3, 0, Math.PI * 2);
+      ctx.fill();
+    });
+  }
+
+  // 十字线 + 提示
+  if (chart.hover && chart.hover.x >= box.x - 4 && chart.hover.x <= box.x + box.w + 4){
+    const span = sx[sx.length - 1] - sx[0] || 1;
+    let i = Math.round((chart.hover.x - box.x) / box.w * span + sx[0]);
+    i = Math.max(0, Math.min(sx.length - 1, i));
+    const px = Math.round(X(sx[i])) + 0.5;
+    ctx.strokeStyle = axis; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(px, box.y); ctx.lineTo(px, box.y + box.h); ctx.stroke();
+
+    vis.forEach(s => {
+      ctx.fillStyle = s.color;
+      ctx.strokeStyle = surface; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(px, Y(s.data[i]), 4, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    });
+
+    const rows = vis.map(s => ({ name:s.name, color:s.color, v:s.data[i] }))
+                    .sort((a, b) => b.v - a.v)
+                    .map(r => '<div class="t-r"><span class="t-l"><i style="--c:' + r.color + '"></i>' +
+                              r.name + '</span><b>' + r.v.toFixed(2) + '</b></div>').join("");
+    chart.tip.innerHTML = '<div class="t-h">' + cfg.hoverLabel(i) + '</div>' + rows;
+    chart.tip.style.opacity = 1;
+    const tw = chart.tip.offsetWidth;
+    let left = px + 14;
+    if (left + tw > w) left = px - tw - 14;
+    chart.tip.style.left = Math.max(4, left) + "px";
+    chart.tip.style.top = Math.max(4, Math.min(h - chart.tip.offsetHeight - 4, chart.hover.y - 10)) + "px";
+  } else {
+    chart.tip.style.opacity = 0;
+  }
+}
+
+/* =========================================================
+   6. 三张图 + 两张表
+   ========================================================= */
+const ZOOM_LO = 22, ZOOM_HI = 58;      // 尖峰放大区间（含 06:30 那处尖峰）
+let charts = [];
+
+// 每次重算只换 cfg，不重新建对象（避免 ResizeObserver 越挂越多）
+function chartConfigs(){
+  const hours = Array.from({ length: N }, (_, i) => i * DT / 60);
+  const zx = hours.slice(ZOOM_LO, ZOOM_HI);
+  const pick = obj => SERIES.map(s => ({
+    key: s.key, name: s.name, color: seriesColor(s.slot),
+    data: Array.isArray(obj) ? obj : obj[s.key],
+  }));
+
+  return [
+    {   // ① 全天
+      x: hours,
+      series: pick(M.data),
+      xTicks: [0, 4, 8, 12, 16, 20],
+      xFmt: h => String(h).padStart(2, "0") + ":00",
+      yFmt: v => v.toFixed(0),
+      hoverLabel: i => "第 " + (i + 1) + " 点 · " + hhmm(i),
+      markSpikes: SPIKE_IDX.slice(),
+    },
+    {   // ② 尖峰放大
+      x: zx,
+      series: SERIES.map(s => ({
+        key: s.key, name: s.name, color: seriesColor(s.slot),
+        data: M.data[s.key].slice(ZOOM_LO, ZOOM_HI),
+      })),
+      xTicks: [4, 5, 6, 7, 8, 9],
+      xFmt: h => String(h).padStart(2, "0") + ":00",
+      yFmt: v => v.toFixed(0),
+      hoverLabel: i => "第 " + (i + ZOOM_LO + 1) + " 点 · " + hhmm(i + ZOOM_LO),
+      markSpikes: SPIKE_IDX.map(i => i - ZOOM_LO).filter(i => i >= 0 && i < ZOOM_HI - ZOOM_LO),
+    },
+    {   // ③ 阶跃响应
+      x: Array.from({ length: M.stepData.n }, (_, i) => i * DT),
+      series: pick(M.stepData.out),
+      xTicks: [0, 100, 200, 300, 400, 500],
+      xFmt: m => m + "分",
+      yFmt: v => v.toFixed(0),
+      hoverLabel: i => "第 " + (i + 1) + " 点 · " + (i * DT) + " 分钟",
+      refLines: [{ v: 29, label: "90% = 29 ℃" }],
+    },
+  ];
+}
+
+function buildCharts(){
+  const cfgs = chartConfigs();
+  if (!charts.length){
+    charts = [ makeChart("plot1", cfgs[0]), makeChart("plot2", cfgs[1]), makeChart("plot3", cfgs[2]) ];
+  } else {
+    charts.forEach((c, i) => { c.cfg = cfgs[i]; });
+  }
+}
+
+function renderAll(){ charts.forEach(render); }
+
+function renderTables(){
+  const order = M.metrics;
+  const filters = order.filter(m => m.key !== "raw");   // 原始数据是基准，不参与评优
+  const bestRmse  = Math.min(...filters.map(m => m.rmse));
+  const bestSpike = Math.min(...filters.map(m => m.spikeErr));
+  const rises = filters.map(m => m.rise).filter(v => v !== null);
+  const bestRise = rises.length ? Math.min(...rises) : null;
+
+  let html = '<table><thead><tr><th>方法</th><th>噪声 RMSE（℃）</th><th>尖峰处最大偏差（℃）</th><th>阶跃到 90%（分钟）</th></tr></thead><tbody>';
+  order.forEach(m => {
+    const isFilter = m.key !== "raw";
+    const r1 = '<td>' + m.rmse.toFixed(2) + (isFilter && m.rmse === bestRmse ? '<span class="ok">✓</span>' : '') + '</td>';
+    const r2 = '<td>' + m.spikeErr.toFixed(2) + (isFilter && m.spikeErr === bestSpike ? '<span class="ok">✓</span>' : '') + '</td>';
+    const r3 = m.rise === null
+      ? '<td>永远到不了（卡在旧值）</td>'
+      : '<td>' + m.rise + (isFilter && m.rise === bestRise ? '<span class="ok">✓</span>' : '') + '</td>';
+    html += '<tr><td>' + m.name + '</td>' + r1 + r2 + r3 + '</tr>';
+  });
+  html += '</tbody></table>';
+  document.getElementById("tbl4").innerHTML = html;
+
+  // 尖峰附近的数值表
+  const lo = 33, hi = 48;
+  let t = '<table><thead><tr><th>时间</th><th>真值</th>';
+  SERIES.forEach(s => { t += '<th>' + s.name + '</th>'; });
+  t += '</tr></thead><tbody>';
+  for (let i = lo; i <= hi; i++){
+    t += '<tr><td>' + hhmm(i) + '</td><td>' + M.truth[i].toFixed(2) + '</td>';
+    SERIES.forEach(s => { t += '<td>' + M.data[s.key][i].toFixed(2) + '</td>'; });
+    t += '</tr>';
+  }
+  t += '</tbody></table>';
+  document.getElementById("tbl2").innerHTML = t;
+}
+
+/* =========================================================
+   7. 界面
+   ========================================================= */
+function buildControls(){
+  const box = document.getElementById("controls");
+  box.innerHTML = CTLS.map(c =>
+    '<label class="ctl"><span>' + c.label + '</span>' +
+    '<output id="' + c.id + '_v">' + c.fmt(P[c.id]) + '</output>' +
+    '<input type="range" id="' + c.id + '" min="' + c.min + '" max="' + c.max + '" step="' + c.step + '" value="' + P[c.id] + '">' +
+    '</label>'
+  ).join("") + '<div style="display:flex;align-items:flex-end"><button class="toggle" id="reset" type="button">恢复默认</button></div>';
+
+  CTLS.forEach(c => {
+    const inp = document.getElementById(c.id), out = document.getElementById(c.id + "_v");
+    inp.addEventListener("input", () => {
+      P[c.id] = parseFloat(inp.value);
+      out.textContent = c.fmt(P[c.id]);
+      rebuild();
+    });
+  });
+  document.getElementById("reset").addEventListener("click", () => {
+    Object.assign(P, DEFAULTS);
+    CTLS.forEach(c => {
+      document.getElementById(c.id).value = P[c.id];
+      document.getElementById(c.id + "_v").textContent = c.fmt(P[c.id]);
+    });
+    rebuild();
+  });
+}
+
+function buildLegend(){
+  const box = document.getElementById("legend");
+  box.innerHTML = SERIES.map(s =>
+    '<button type="button" data-key="' + s.key + '" aria-pressed="true">' +
+    '<span class="swatch" style="--c:var(--series-' + s.slot + ')"></span>' + s.name + '</button>'
+  ).join("");
+  box.querySelectorAll("button").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const k = btn.dataset.key;
+      visible[k] = !visible[k];
+      btn.setAttribute("aria-pressed", String(visible[k]));
+      renderAll();
+    });
+  });
+}
+
+function rebuild(){
+  buildSeries();
+  buildCharts();
+  renderTables();
+  renderAll();
+}
+
+document.getElementById("tbl2btn").addEventListener("click", e => {
+  const el = document.getElementById("tbl2");
+  el.classList.toggle("hidden");
+  e.target.textContent = el.classList.contains("hidden") ? "显示数值表" : "隐藏数值表";
+});
+
+document.getElementById("theme").addEventListener("click", () => {
+  const cur = document.documentElement.getAttribute("data-theme");
+  const isDark = cur ? cur === "dark"
+                     : window.matchMedia("(prefers-color-scheme: dark)").matches;
+  document.documentElement.setAttribute("data-theme", isDark ? "light" : "dark");
+  rerenderTheme();
+});
+
+function rerenderTheme(){
+  buildCharts();
+  renderAll();
+}
+
+buildControls();
+buildLegend();
+rebuild();
+window.addEventListener("resize", renderAll);
+</script>
+</body>
+</html>
