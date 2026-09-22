@@ -132,6 +132,38 @@
   thead th{ color: var(--ink-muted); font-weight:500; font-size:11.5px; }
   tbody td{ color: var(--ink-1); }
   td .ok{ color: var(--best); font-weight:650; margin-left:3px; }
+
+  /* ---- 算法介绍 ---- */
+  .aloGrid{ display:grid; grid-template-columns: repeat(auto-fit, minmax(310px,1fr)); gap:12px; }
+  .algo{ border:1px solid var(--border); border-radius:10px; padding:12px 14px; }
+  .algo h3{ margin:0 0 8px; font-size:13.5px; font-weight:650; display:flex; align-items:center; gap:7px; color: var(--ink-1); }
+  .algo h3 .sw{ width:10px; height:10px; border-radius:3px; background: var(--c); flex:0 0 auto; }
+  .algo h3 .tag{ font-size:11px; font-weight:500; color: var(--ink-muted); border:1px solid var(--border); border-radius:999px; padding:1px 7px; }
+  .algo .eq{ font-family: ui-monospace, Consolas, "Cascadia Mono", monospace; font-size:12px; line-height:1.5;
+             background: var(--page); border:1px solid var(--border); border-radius:6px; padding:7px 9px;
+             margin:0 0 9px; color: var(--ink-1); overflow-x:auto; white-space:nowrap; }
+  .algo dl{ margin:0; display:grid; grid-template-columns:auto 1fr; gap:4px 10px; font-size:12.5px; line-height:1.45; }
+  .algo dt{ color: var(--ink-muted); white-space:nowrap; }
+  .algo dd{ margin:0; color: var(--ink-2); }
+  .algo{ cursor:pointer; }
+  .algo:hover{ border-color: var(--axis); }
+  .algo.open{ grid-column: 1 / -1; }          /* 展开后占满整行，代码不用横向滚动 */
+  .algo.open dl{ max-width: 620px; }
+  .algo .more{
+    display:block; width:100%; text-align:left; margin:10px 0 0; padding:0;
+    font: inherit; font-size:11.5px; color: var(--ink-muted);
+    background:none; border:0; cursor:pointer;
+  }
+  .algo:hover .more, .algo.open .more{ color: var(--ink-2); }
+  .algo .code{ display:none; margin-top:9px; }
+  .algo.open .code{ display:block; }
+  .algo .code pre{
+    font-family: ui-monospace, Consolas, "Cascadia Mono", monospace;
+    font-size:11.5px; line-height:1.6; margin:0; padding:10px 12px;
+    background: var(--page); border:1px solid var(--border); border-radius:6px;
+    color: var(--ink-1); overflow-x:auto; white-space:pre;
+  }
+  .algo .code .cm{ color: var(--ink-muted); }
   .scroll{ overflow-x:auto; }
   .hidden{ display:none; }
   .foot{ color: var(--ink-muted); font-size:12px; margin: 4px 0 0; }
@@ -183,6 +215,12 @@
     <p class="cap">✓ 表示这一列里最好的一项</p>
     <div class="scroll" id="tbl4"></div>
     <p class="foot">噪声 RMSE：滤波后与真实曲线（不含尖峰）的均方根误差，越小越干净。尖峰处最大偏差：尖峰时刻滤波结果与真值差多少，越小越抗野值。阶跃到 90%：从 20 ℃ 升到 29 ℃ 用了多少分钟，越小越灵敏。</p>
+  </div>
+
+  <div class="card">
+    <h2>⑤ 算法介绍</h2>
+    <p class="cap">优缺点简介。点卡片展开 C++ 实现</p>
+    <div class="aloGrid" id="algos"></div>
   </div>
 
   <p class="foot">移动平均用的是 <code>week_2/基础/main.cpp</code> 里同一套算法（环形窗口 + 取模）。RC 低通与 EMA 是同一个递推式，只是系数叫法不同：α = dt / (τ + dt)。</p>
@@ -625,7 +663,149 @@ function renderTables(){
 }
 
 /* =========================================================
-   7. 界面
+   7. 算法介绍
+   ========================================================= */
+const ALGOS = [
+  { key:"ma", tag:"本项目用的就是这个",
+    eq:"y[n] = ( x[n] + … + x[n−W+1] ) / W",
+    param:"W 窗口长度",
+    good:"随机噪声；实现最简单，一个数组加一次取模",
+    bad:"滞后约 W/2 个点；一个坏点会污染后面 W 个点",
+    code:
+`// 环形窗口 + 取模：元素从不搬移，新值只覆盖最旧的那个位置
+double win[W];
+int idx = 0, cnt = 0;
+
+double moving_avg(double x) {
+    win[idx] = x;            // 1. 新值覆盖最旧值
+    idx = (idx + 1) % W;     // 2. 模运算：下标循环回 0
+    if (cnt < W) cnt++;      // 3. 窗口没满，先计数
+    double s = 0.0;
+    for (int i = 0; i < cnt; i++) s += win[i];
+    return s / cnt;          // 按实际个数求平均
+}` },
+  { key:"limit",
+    eq:"| x[n] − y[n−1] | > Δ ?  y[n−1] : x[n]",
+    param:"Δ 允许的最大变化量",
+    good:"单点跳变，一行 if 就够",
+    bad:"Δ 比真实变化率小就会卡死；真阶跃永远跟不上（图上那条平线）",
+    code:
+`// 跳变超过 Δ 就丢弃本次采样，沿用上一个有效值
+double last = 0.0;
+const double DELTA = 3.0;    // 允许的最大变化量（℃）
+
+double limit_filter(double x) {
+    if (fabs(x - last) <= DELTA)
+        last = x;            // 变化正常，接受
+    return last;             // 否则保持旧值不动
+}` },
+  { key:"median",
+    eq:"y[n] = 窗口内排序后取中间值",
+    param:"W 窗口长度（取奇数）",
+    good:"孤立尖峰，最多影响半个窗口",
+    bad:"要排序，比求平均慢；连续几个坏点就无效",
+    code:
+`// 中值：窗口内排个序，取中间那个（W 取奇数）
+double median_filter(double x) {
+    win[idx] = x;
+    idx = (idx + 1) % W;
+    if (cnt < W) cnt++;
+
+    double seg[W];
+    for (int i = 0; i < cnt; i++) seg[i] = win[i];
+    for (int i = 0; i < cnt - 1; i++)          // 冒泡排序，小窗口够用
+        for (int j = 0; j < cnt - 1 - i; j++)
+            if (seg[j] > seg[j + 1]) {
+                double t = seg[j]; seg[j] = seg[j + 1]; seg[j + 1] = t;
+            }
+    return seg[cnt / 2];                       // 取中间值
+}` },
+  { key:"ema",
+    eq:"y = a·x + (1−a)·y",
+    param:"a 平滑系数，越大越跟手",
+    good:"不用数组，O(1) 内存，等效于无限长窗口",
+    bad:"a 难调；旧值一直留尾巴，尖峰拖很久（这里 2.75 ℃）",
+    code:
+`// 指数移动平均：只用上一次的结果，不需要数组
+double y = 0.0;              // 用第一个采样值初始化
+const double A = 0.35;       // 0~1，越大越跟手
+
+double ema_filter(double x) {
+    y = A * x + (1.0 - A) * y;
+    return y;
+}` },
+  { key:"rc",
+    eq:"y += α·( x − y )，α = dt / (τ + dt)",
+    param:"τ = RC 时间常数",
+    good:"物理意义清楚（电容充放电），τ 直接对应平滑程度",
+    bad:"和 EMA 是同一个递推式，系数相同则两条线完全重合",
+    code:
+`// RC 一阶低通：和 EMA 是同一个式子，
+// 区别只是系数由时间常数 τ 换算
+const double DT    = 10.0;                    // 采样周期（分钟）
+const double TAU   = 30.0;                    // RC 时间常数 τ（分钟）
+const double ALPHA = DT / (TAU + DT);         // = 0.25
+
+double rc_filter(double x) {
+    y = y + ALPHA * (x - y);                  // 展开就是 EMA
+    return y;
+}` },
+  { key:"kalman",
+    eq:"K = P / (P + R)；x ← x + K·( z − x )",
+    param:"Q 过程噪声、R 观测噪声",
+    good:"模型对的时候最接近真值，还能融合预测和观测",
+    bad:"模型不对就白干——这里假设温度不变，结果最慢（170 分钟）",
+    code:
+`// 一维卡尔曼：预测模型 = "温度不变"，靠 Q/R 自动分配信任度
+double x = 0.0;              // 估计值
+double P = 1.0;              // 估计的不确定度
+const double Q = 0.01;       // 过程噪声：温度自己会变多少
+const double R = 0.64;       // 观测噪声：传感器有多不准（σ²）
+
+double kalman_filter(double z) {
+    P = P + Q;                        // 1. 预测：不确定度变大
+    double K = P / (P + R);           // 2. 算卡尔曼增益
+    x = x + K * (z - x);              // 3. 用观测修正估计
+    P = (1 - K) * P;                  // 4. 更新不确定度
+    return x;
+}` },
+];
+
+const escHTML = s => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+function codeHTML(src){
+  return escHTML(src).split("\n")
+    .map(l => /^\s*\/\//.test(l) ? '<span class="cm">' + l + '</span>' : l)
+    .join("\n");
+}
+
+function renderAlgos(){
+  document.getElementById("algos").innerHTML = ALGOS.map(a => {
+    const s = SERIES.find(x => x.key === a.key);
+    return '<div class="algo">' +
+      '<h3><span class="sw" style="--c:var(--series-' + s.slot + ')"></span>' + s.name +
+        (a.tag ? '<span class="tag">' + a.tag + '</span>' : '') + '</h3>' +
+      '<div class="eq">' + a.eq + '</div>' +
+      '<dl><dt>参数</dt><dd>' + a.param + '</dd>' +
+          '<dt>擅长</dt><dd>' + a.good + '</dd>' +
+          '<dt>代价</dt><dd>' + a.bad + '</dd></dl>' +
+      '<button class="more" type="button" aria-expanded="false">点击查看 C++ 实现 ▾</button>' +
+      '<div class="code"><pre>' + codeHTML(a.code) + '</pre></div>' +
+    '</div>';
+  }).join("");
+
+  document.querySelectorAll("#algos .algo").forEach(card => {
+    const btn = card.querySelector(".more");
+    card.addEventListener("click", e => {
+      if (e.target.closest(".code")) return;        // 选中代码时不收起
+      const open = card.classList.toggle("open");
+      btn.setAttribute("aria-expanded", String(open));
+      btn.textContent = open ? "收起 ▴" : "点击查看 C++ 实现 ▾";
+    });
+  });
+}
+
+/* =========================================================
+   8. 界面
    ========================================================= */
 function buildControls(){
   const box = document.getElementById("controls");
@@ -698,6 +878,7 @@ function rerenderTheme(){
 
 buildControls();
 buildLegend();
+renderAlgos();
 rebuild();
 window.addEventListener("resize", renderAll);
 </script>
